@@ -22,14 +22,18 @@ class SkinTypeAnalyzer:
         texture = cv2.Laplacian(gray, cv2.CV_64F).var()
 
         # Heuristic logic
-        if mean_s > 120 and mean_v > 140:
+        if mean_v > 160 and texture < 250:
             skin_type = "oily"
-        elif mean_s < 60 and mean_v < 120:
-            skin_type = "dry"
-        elif texture > 150:
+
+        elif texture > 300:
             skin_type = "acne_prone"
+
+        elif mean_s < 60 and mean_v < 130:
+            skin_type = "dry"
+
         elif 60 <= mean_s <= 120:
             skin_type = "normal"
+
         else:
             skin_type = "combination"
 
