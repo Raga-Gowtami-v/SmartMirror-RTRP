@@ -1,41 +1,67 @@
 import cv2
 import numpy as np
 
+# Load Haar cascade once
+face_cascade = cv2.CascadeClassifier(
+    cv2.data.haarcascades + 'haarcascade_frontalface_default.xml'
+)
+
 
 class SkinTypeAnalyzer:
 
     def analyze(self, image):
         """
         Analyze skin type using HSV + texture heuristics.
-        image: BGR OpenCV image
+        Returns dictionary with result.
         """
 
-        # Convert to HSV
-        hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
-        h, s, v = cv2.split(hsv)
+        # --- Face Detection ---
+        gray_full = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        faces = face_cascade.detectMultiScale(
+            gray_full,
+            scaleFactor=1.3,
+            minNeighbors=5
+        )
 
-        mean_s = np.mean(s)
-        mean_v = np.mean(v)
+        if len(faces) == 0:
+            return {
+                "skin_type": "No face detected"
+            }
 
-        # Texture analysis
-        gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-        texture = cv2.Laplacian(gray, cv2.CV_64F).var()
+        # Take first detected face
+        x, y, w, h = faces[0]
+        face_region = image[y:y+h, x:x+w]
 
-        # Heuristic logic
-        if mean_v > 160 and texture < 250:
-            skin_type = "oily"
+        # --- HSV Analysis on FACE ONLY ---
+        hsv = cv2.cvtColor(face_region, cv2.COLOR_BGR2HSV)
+        h_channel, s_channel, v_channel = cv2.split(hsv)
 
-        elif texture > 300:
-            skin_type = "acne_prone"
+        mean_s = np.mean(s_channel)
+        mean_v = np.mean(v_channel)
 
-        elif mean_s < 60 and mean_v < 130:
-            skin_type = "dry"
+        # --- Texture Analysis on FACE ONLY ---
+        gray_face = cv2.cvtColor(face_region, cv2.COLOR_BGR2GRAY)
+        blur = cv2.GaussianBlur(gray_face, (5, 5), 0)
+        texture = cv2.Laplacian(blur, cv2.CV_64F).var()
 
-        elif 60 <= mean_s <= 120:
-            skin_type = "normal"
-
+        # --- Improved Heuristic Logic ---
+        # # Detect oiliness
+        if mean_v > 155 and mean_s > 90:
+            base_type = "oily"
+        # Detect dryness
+        elif mean_v < 120 and mean_s < 70:
+            base_type = "dry"
+        # Otherwise normal
         else:
-            skin_type = "combination"
+            base_type = "normal"
+        # Detect acne separately using texture
+        if texture > 280:
+            if base_type == "normal":
+                skin_type = "acne_prone"
+            else:
+                skin_type = base_type + " + acne_prone"
+        else:
+            skin_type = base_type
 
         return {
             "skin_type": skin_type,
